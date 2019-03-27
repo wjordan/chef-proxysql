@@ -99,7 +99,7 @@ class Chef
       provides(:proxysql_service)
 
       def action_delete
-        service new_resource.service_name do
+        poise_service new_resource.service_name do
           action %i[stop disable]
         end
         file config_file do
@@ -113,15 +113,8 @@ class Chef
         install_proxysql
         create_directories(service_data_dir)
         install_config
-        install_service
-
-        service new_resource.service_name do
-          supports(
-            status: true,
-            restart: true
-          )
-          action %i[enable start]
-        end
+        service = install_service
+        service.action %i[enable start]
       end
 
       private
@@ -211,25 +204,13 @@ class Chef
       end
 
       def install_config
-        pre_st = new_resource.pre_statements.map { |st| "#{st};" }
-        post_st = new_resource.post_statements.map { |st| "#{st};" }
-        pre_cmd = %(echo "#{pre_st.join(' ')}" | #{mysql_cmd})
-        post_cmd = %(echo "#{post_st.join(' ')}" | #{mysql_cmd})
         variables = config_variables
-
-        execute 'load-config' do
-          command "#{pre_cmd} && #{post_cmd}"
-          action :nothing
-          only_if "systemctl is-active #{new_resource.service_name}"
-        end
-
         template config_file do
           source 'proxysql.cnf.erb'
           variables variables
           owner new_resource.user
           group new_resource.group
           mode '0640'
-          notifies :run, 'execute[load-config]', :immediately
           helpers(ProxysqlHelpers)
           cookbook 'proxysql'
         end
@@ -251,28 +232,29 @@ class Chef
       end
 
       def install_service
-        exec_start = "#{new_resource.bin} #{service_args}"
-        systemd_service new_resource.service_name do
-          unit do
-            description 'Chef managed ProxySQL service'
-            after Array(new_resource.service_unit_after).join(' ')
-          end
-
-          install do
-            wanted_by 'multi-user.target'
-          end
-
-          service do
-            type 'simple'
-            exec_start exec_start
-            restart new_resource.service_restart
-            timeout_sec new_resource.service_timeout_sec
-            user new_resource.user
-            group new_resource.group
-            limit_core new_resource.service_limit_core
-            limit_nofile new_resource.service_limit_nofile
-          end
+        command = "#{new_resource.bin} #{service_args}"
+        systemd_after_target = Array(new_resource.service_unit_after).join(' ')
+        service = poise_service new_resource.service_name do
+          command command
+          user new_resource.user
+          group new_resource.group
+          options :systemd, after_target: systemd_after_target
         end
+
+        pre_st = new_resource.pre_statements.map { |st| "#{st};" }.join(' ')
+        post_st = new_resource.post_statements.map { |st| "#{st};" }.join(' ')
+        pre_cmd = %(echo "#{pre_st}" | #{mysql_cmd})
+        post_cmd = %(echo "#{post_st}" | #{mysql_cmd})
+        template_config_file = "template[#{config_file}]"
+
+        execute 'load-config' do
+          command "#{pre_cmd} && #{post_cmd}"
+          action :nothing
+          subscribes :run, template_config_file, :delayed
+          retries 3
+        end
+        
+        service
       end
 
       def make_config(obj)
