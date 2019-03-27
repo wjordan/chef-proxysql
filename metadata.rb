@@ -15,4 +15,4 @@ supports 'ubuntu'
 supports 'debian'
 
 depends 'poise', '~> 2.8.1'
-depends 'systemd', '~> 3.2.3'
+depends 'poise-service', '~> 1.5.2'

@@ -150,7 +150,6 @@ end
 
 ## Requirements
 
- - Systemd
  - MySQL client (for loading configuration from disk to proxysql)
 
 ## Resources
