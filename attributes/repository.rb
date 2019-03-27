@@ -1,5 +1,5 @@
-default['percona']['repository']['name'] = 'percona-release.repo'
-default['percona']['repository']['version'] = '0.1-4'
+default['percona']['repository']['name'] = 'percona-original-release.repo'
+default['percona']['repository']['version'] = 'latest'
 
 case node['platform']
 when 'rhel', 'centos'
@@ -7,8 +7,7 @@ when 'rhel', 'centos'
 
   default['percona']['repository']['url'] = 'http://www.percona.com/'\
     'downloads/percona-release/redhat/'\
-    "#{node['percona']['repository']['version']}/"\
-    "percona-release-#{node['percona']['repository']['version']}.noarch.rpm"
+    "#{node['percona']['repository']['version']}/"
 when 'debian', 'ubuntu'
   lsb_release = Mixlib::ShellOut.new('lsb_release -sc')
   lsb_release.run_command
