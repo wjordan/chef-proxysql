@@ -95,34 +95,21 @@ class Chef
 
       # rubocop:disable Metrics/AbcSize
       def install_proxysql_repository
-        url = node['percona']['repository']['url']
-        name = node['percona']['repository']['name']
-
         case node['platform']
         when 'rhel', 'centos'
+          url = node['percona']['repository']['url']
+          name = node['percona']['repository']['name']
           execute "rpm -Uhv #{url}" do
             creates "/etc/yum.repos.d/#{name}"
           end
         when 'ubuntu', 'debian'
-          basename = ::File.basename(url)
-          percona_repo_deb = Chef::Config[:file_cache_path] + "/#{basename}"
-
-          # Using execute because apt_update is available only in Chef Client 12.7.
-          execute 'apt_update_for_percona_repo' do
-            command %(apt-get update)
-            action :nothing
-          end
-
-          dpkg_package basename do
-            source percona_repo_deb
-            action :nothing
-            notifies :run, 'execute[apt_update_for_percona_repo]', :immediate
-          end
-
-          remote_file percona_repo_deb do
-            source url
-            notifies :install, "dpkg_package[#{basename}]", :immediate
-            not_if { ::File.exist?(percona_repo_deb) }
+          include_recipe 'apt'
+          # https://github.com/sysown/proxysql#ubuntu--debian
+          apt_repository "proxysql" do
+            uri "http://repo.proxysql.com/ProxySQL/proxysql-2.0.x/#{node['lsb']['codename']}/"
+            distribution nil
+            components ['./']
+            key "https://repo.proxysql.com/ProxySQL/repo_pub_key"
           end
         end
       end
