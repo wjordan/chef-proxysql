@@ -281,7 +281,13 @@ class Chef
       end
 
       def install_proxysql
-        v = package_version
+        v = case node['platform']
+        when 'rhel', 'centos'
+          package_version
+        when 'debian', 'ubuntu'
+          new_resource.version
+        end
+
         package 'proxysql' do
           version v if new_resource.lock_version
         end
